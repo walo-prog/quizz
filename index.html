@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kuis AI Interaktif By WALO</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --primary:#6366f1;
+  --secondary:#22d3ee;
+  --bg:#0f172a;
+  --card:#1e293b;
+  --text:#e5e7eb;
+  --muted:#94a3b8;
+  --success:#22c55e;
+  --danger:#ef4444;
+}
+
+.light{
+  --bg:#f8fafc;
+  --card:#ffffff;
+  --text:#020617;
+  --muted:#475569;
+}
+
+*{box-sizing:border-box;font-family:'Inter',sans-serif}
+
+body{
+  margin:0;
+  min-height:100vh;
+  background:linear-gradient(135deg,var(--bg),#020617);
+  color:var(--text);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:20px;
+  transition:.3s;
+}
+
+.container{
+  max-width:720px;
+  width:100%;
+  background:var(--card);
+  border-radius:18px;
+  padding:28px;
+  box-shadow:0 25px 50px rgba(0,0,0,.4);
+  animation:fade .6s ease;
+}
+
+@keyframes fade{from{opacity:0;transform:translateY(20px)}to{opacity:1}}
+
+header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.toggle{cursor:pointer;font-size:1.4rem}
+
+.subtitle{text-align:center;color:var(--muted);margin:12px 0 18px}
+
+.progress{
+  height:8px;
+  background:rgba(255,255,255,.15);
+  border-radius:20px;
+  overflow:hidden;
+  margin-bottom:18px;
+}
+
+.progress-bar{
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg,var(--primary),var(--secondary));
+  transition:.4s;
+  box-shadow:0 0 10px var(--secondary);
+}
+
+.question{font-size:1.1rem;margin-bottom:16px}
+
+.options{display:grid;gap:12px}
+
+.option{
+  padding:14px 16px;
+  background:rgba(0,0,0,.25);
+  border-radius:12px;
+  cursor:pointer;
+  transition:.2s;
+  border:1px solid transparent;
+}
+
+.option:hover{border-color:var(--secondary)}
+.option:active{transform:scale(.97)}
+
+.correct{
+  background:rgba(34,197,94,.25);
+  border-color:var(--success);
+  animation:bounce .4s;
+}
+
+.wrong{
+  background:rgba(239,68,68,.25);
+  border-color:var(--danger);
+  animation:shake .4s;
+}
+
+@keyframes bounce{
+  0%{transform:scale(1)}
+  50%{transform:scale(1.08)}
+  100%{transform:scale(1)}
+}
+
+@keyframes shake{
+  0%{transform:translateX(0)}
+  25%{transform:translateX(-6px)}
+  50%{transform:translateX(6px)}
+  75%{transform:translateX(-6px)}
+  100%{transform:translateX(0)}
+}
+
+.feedback{margin-top:14px;font-weight:600}
+
+.controls{
+  margin-top:22px;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+
+button{
+  border:none;
+  padding:12px 20px;
+  border-radius:12px;
+  cursor:pointer;
+  font-weight:600;
+  background:linear-gradient(135deg,var(--primary),var(--secondary));
+  color:#020617;
+  transition:.2s;
+}
+
+button:active{transform:scale(.95)}
+button:disabled{opacity:.5}
+
+.result{text-align:center;animation:fade .6s}
+.pulse{animation:pulse .3s}
+
+@keyframes pulse{
+  0%{transform:scale(1)}
+  50%{transform:scale(1.04)}
+  100%{transform:scale(1)}
+}
+</style>
+</head>
+
+<body>
+<div class="container" id="card">
+<header>
+  <h1>🤖 Kuis AI</h1>
+  <div class="toggle" id="theme">🌙</div>
+</header>
+
+<p class="subtitle">Belajar AI jadi lebih seru</p>
+
+<div class="progress">
+  <div class="progress-bar" id="bar"></div>
+</div>
+
+<div id="quiz">
+  <div class="question" id="q"></div>
+  <div class="options" id="opts"></div>
+  <div class="feedback" id="fb"></div>
+
+  <div class="controls">
+    <div id="score"></div>
+    <button id="next" disabled>Berikutnya →</button>
+  </div>
+</div>
+</div>
+
+<script>
+/* 🔊 SOUND ENGINE */
+const ctx=new (window.AudioContext||window.webkitAudioContext)();
+function beep(freq,duration){
+  const o=ctx.createOscillator();
+  const g=ctx.createGain();
+  o.connect(g);g.connect(ctx.destination);
+  o.frequency.value=freq;
+  o.type="sine";
+  g.gain.value=0.1;
+  o.start();
+  setTimeout(()=>o.stop(),duration);
+}
+
+const correctSound=()=>beep(880,150);
+const wrongSound=()=>beep(220,250);
+const clickSound=()=>beep(500,80);
+const finishSound=()=>beep(1200,400);
+
+/* QUIZ */
+const qs=[
+ {q:"Apa itu AI?",o:["Mesin cerdas","Bahasa","Hardware","OS"],a:0},
+ {q:"Bapak AI?",o:["Jobs","Turing","Musk","Gates"],a:1},
+ {q:"ChatGPT bidang?",o:["CV","NLP","IoT","DB"],a:1},
+ {q:"AI dipakai di?",o:["Asisten virtual","Kabel","Printer","Mouse"],a:0},
+ {q:"AI modern berkembang karena?",o:["Disket","Big Data","Mesin tik","Fax"],a:1}
+];
+
+let i=0,s=0,lock=false;
+
+const q=document.getElementById("q"),
+o=document.getElementById("opts"),
+fb=document.getElementById("fb"),
+sc=document.getElementById("score"),
+bar=document.getElementById("bar"),
+next=document.getElementById("next"),
+card=document.getElementById("card");
+
+function load(){
+  lock=false;next.disabled=true;fb.textContent="";
+  q.textContent=`${i+1}. ${qs[i].q}`;
+  o.innerHTML="";
+  qs[i].o.forEach((t,x)=>{
+    const d=document.createElement("div");
+    d.className="option";
+    d.textContent=t;
+    d.onclick=()=>pick(d,x);
+    o.appendChild(d);
+  });
+  sc.textContent=`Skor: ${s}/${qs.length}`;
+  bar.style.width=`${(i/qs.length)*100}%`;
+}
+
+function pick(el,x){
+  if(lock)return;lock=true;
+  clickSound();
+  const a=qs[i].a;
+  [...document.querySelectorAll(".option")].forEach((e,j)=>{
+    if(j===a)e.classList.add("correct");
+    if(j===x&&x!==a)e.classList.add("wrong");
+  });
+  if(x===a){s++;fb.textContent="✅ Benar!";correctSound();card.classList.add("pulse")}
+  else{fb.textContent="❌ Salah";wrongSound()}
+  setTimeout(()=>card.classList.remove("pulse"),300);
+  next.disabled=false;
+}
+
+next.onclick=()=>{
+  clickSound();
+  i++;
+  if(i<qs.length)load();
+  else finish();
+};
+
+function finish(){
+  finishSound();
+  bar.style.width="100%";
+  document.getElementById("quiz").innerHTML=`
+  <div class="result">
+    <h2>🎉 Kuis Selesai</h2>
+    <h1>${s}/${qs.length}</h1>
+    <p>${s>=4?"Keren! Kamu AI-ready 🚀":"Terus belajar ya 🤖"}</p>
+    <button onclick="location.reload()">Ulangi</button>
+  </div>`;
+}
+
+/* THEME */
+const t=document.getElementById("theme");
+if(localStorage.theme==="light"){document.body.classList.add("light");t.textContent="☀️";}
+t.onclick=()=>{
+  clickSound();
+  document.body.classList.toggle("light");
+  const l=document.body.classList.contains("light");
+  t.textContent=l?"☀️":"🌙";
+  localStorage.theme=l?"light":"dark";
+};
+
+load();
+</script>
+</body>
+</html>
+
